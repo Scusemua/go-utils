@@ -69,6 +69,21 @@ var _ = Describe("WaitGroup", func() {
 		runtime.Gosched()
 		Expect(isBlock(&wg)).To(Equal(false))
 	})
+
+	It("can done only without error", func() {
+		var wg csync.WaitGroup
+
+		wg.Done()
+		Expect(isBlock(&wg)).To(Equal(false))
+	})
+
+	It("can add after done", func() {
+		var wg csync.WaitGroup
+
+		wg.Done()
+		wg.Add(1)
+		Expect(isBlock(&wg)).To(Equal(false))
+	})
 })
 
 func BenchmarkGoWaitgroupAll(b *testing.B) {
