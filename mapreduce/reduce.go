@@ -13,10 +13,6 @@ var (
 	ErrInvalidReducer      = errors.New("invalid reducer signature, must be \"reducer(TypeA, TypeB, int) TypeA\" or \"reducer(TypeA, TypeB) TypeA\"")
 )
 
-type Initiator interface {
-	Initiate() interface{}
-}
-
 // Reduce reduces iteratible objects into a scalar value.
 // The reducer can be reducer(TypeA, TypeB, int) TypeA or reducer(TypeA, TypeB) TypeA
 // The source accept array, slice, channel or Iterator.
@@ -44,17 +40,20 @@ func Reduce(reducer, source interface{}, initials ...interface{}) (interface{}, 
 	rk := reflect.TypeOf(reducer)
 	if rk.Kind() != reflect.Func {
 		return initialValue, ErrReducerNotFunc
-	} else if rk.NumIn() < 2 || rk.NumIn() > 3 || rk.NumOut() != 1 || rk.In(0) != rk.Out(0) || (rk.NumIn() == 3 && rk.In(2) != reflect.TypeOf(0)) {
+	} else if rk.NumIn() < 2 || rk.NumIn() > 3 || rk.NumOut() != 1 || rk.In(0) != rk.Out(0) ||
+		(rk.NumIn() == 3 && rk.In(2) != reflect.TypeOf(0)) ||
+		(initialValue != nil && rk.Out(0) != reflect.TypeOf(initialValue)) {
 		return initialValue, ErrInvalidReducer
 	}
 
 	// Try generate initial value
 	if len(initials) == 0 {
-		initiator, ok := iterator.(Initiator)
-		if !ok {
-			return initialValue, ErrMissingInitialValue
+		outT := rk.Out(0)
+		if outT.Kind() == reflect.Ptr {
+			initialValue = reflect.New(outT.Elem()).Interface()
+		} else {
+			initialValue = reflect.Zero(outT).Interface()
 		}
-		initialValue = initiator.Initiate()
 	}
 
 	accumulator := reflect.ValueOf(initialValue)

@@ -43,15 +43,6 @@ func NewIterator(sliceOrChan interface{}) (Iterator, error) {
 	}
 }
 
-func (iter *ContainerIterator) Initiate() interface{} {
-	in := iter.container.Type().Elem()
-	if in.Kind() == reflect.Ptr {
-		return reflect.New(in.Elem()).Interface()
-	} else {
-		return reflect.Zero(in).Interface()
-	}
-}
-
 func (iter *ContainerIterator) Len() int {
 	return iter.container.Len()
 }
