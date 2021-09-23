@@ -26,6 +26,8 @@ type ArrayIterator struct {
 
 type ChanIterator struct {
 	ContainerIterator
+	lastValue reflect.Value
+	closed    bool
 }
 
 func NewIterator(sliceOrChan interface{}) (Iterator, error) {
@@ -52,20 +54,27 @@ func (iter *ContainerIterator) Cap() int {
 }
 
 func (iter *ArrayIterator) Next() bool {
-	return iter.index+1 < iter.container.Len()
+	iter.index++
+	return iter.index < iter.container.Len()
 }
 
 func (iter *ArrayIterator) Value() (int, interface{}) {
-	iter.index++
 	return iter.index, iter.container.Index(iter.index).Interface()
 }
 
-func (iter *ChanIterator) Next() bool {
-	return iter.container.Len() > 0
+func (iter *ChanIterator) Next() (ok bool) {
+	if iter.closed {
+		return false
+	}
+
+	iter.index++
+	iter.lastValue, ok = iter.container.Recv()
+	if !ok {
+		iter.closed = true
+	}
+	return ok
 }
 
 func (iter *ChanIterator) Value() (int, interface{}) {
-	iter.index++
-	val, _ := iter.container.Recv()
-	return iter.index, val.Interface()
+	return iter.index, iter.lastValue.Interface()
 }

@@ -94,6 +94,27 @@ func TestReduce(t *testing.T) {
 			want:    6,
 		},
 		{
+			name: "Sum of channel",
+			args: args{
+				source: (func() <-chan int {
+					ch := make(chan int)
+					go func() {
+						arr := []int{1, 2, 3}
+						for i := 0; i < len(arr); i++ {
+							ch <- arr[i]
+						}
+						close(ch)
+					}()
+
+					return ch
+				})(),
+				initialValue: 0,
+				reducer:      sumOfInt,
+			},
+			wantErr: false,
+			want:    6,
+		},
+		{
 			name: "Sum of array, no initialValue",
 			args: args{
 				source:  []int{1, 2, 3},
