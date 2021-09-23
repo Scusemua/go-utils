@@ -34,7 +34,7 @@ func NewIterator(sliceOrChan interface{}) (Iterator, error) {
 	if kind == reflect.Slice || kind == reflect.Array {
 		return &ArrayIterator{ContainerIterator: ContainerIterator{container: reflect.ValueOf(sliceOrChan), index: -1}}, nil
 	} else if kind == reflect.Chan {
-		if srcT.ChanDir() != reflect.SendDir {
+		if srcT.ChanDir() == reflect.SendDir {
 			return nil, ErrInvalidChanDir
 		}
 		return &ChanIterator{ContainerIterator: ContainerIterator{container: reflect.ValueOf(sliceOrChan), index: -1}}, nil
