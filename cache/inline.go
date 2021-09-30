@@ -8,6 +8,7 @@ import (
 var (
 	ErrNotFunction     = errors.New("not function")
 	ErrInvalidFunction = errors.New("invalid function")
+	DefaultValidKey    = 1
 )
 
 // Inline cache is a general variable cache for costy operation.
@@ -31,15 +32,29 @@ var (
 // 	return
 //
 
+// ICProducer defines formal producer: func(cached TypeA, args...) (value TypeA, error)
+// Alternation:
+// func(cached TypeA, args) (value TypeA)
+// func(args) (value TypeA, error)
+// func(args) (value TypeA)
 type ICProducer func(interface{}, ...interface{}) (interface{}, error)
 
+// ICValidator defines formal validator: func(cached TypeA) (validity bool)
 type ICValidator func(interface{}) bool
+
+// TODO: Add building validKey support
+// ICValidator defines formal validator: func(cachedValidKey TypeB, cached TypeA) (validity bool, validKey TypeB)
+// Alternation:
+// func(cached TypeA) (validity bool)
+// func() (validity bool)
+// type ICValidator func(interface{}, interface{}) (bool, interface{})
 
 type InlineCache struct {
 	Producer  ICProducer
 	Validator ICValidator
 
 	cached interface{}
+	// validKey interface{}
 }
 
 func (c *InlineCache) Value(args ...interface{}) interface{} {
@@ -65,11 +80,11 @@ func TryFormalizeICProducer(f interface{}) (ICProducer, error) {
 	} else if ft.NumOut() < 1 || (ft.NumOut() > 1 && ft.Out(1) != reflect.TypeOf(ErrInvalidFunction)) {
 		return nil, ErrInvalidFunction
 	}
-	return formalizeICProducer(f, 1), nil
+	return formalizeICProducer(f, 0), nil
 }
 
 func FormalizeICProducer(f interface{}) ICProducer {
-	return formalizeICProducer(f, 1)
+	return formalizeICProducer(f, 0)
 }
 
 func TryFormalizeChainedICProducer(f interface{}) (ICProducer, error) {
@@ -80,26 +95,26 @@ func TryFormalizeChainedICProducer(f interface{}) (ICProducer, error) {
 		(ft.NumOut() > 1 && ft.Out(1) != reflect.TypeOf(ErrInvalidFunction)) {
 		return nil, ErrInvalidFunction
 	}
-	return formalizeICProducer(f, 0), nil
+	return formalizeICProducer(f, 1), nil
 }
 
 func FormalizeChainedICProducer(f interface{}) ICProducer {
-	return formalizeICProducer(f, 0)
+	return formalizeICProducer(f, 1)
 }
 
-func formalizeICProducer(f interface{}, unchained int) ICProducer {
+func formalizeICProducer(f interface{}, chained int) ICProducer {
 	fv := reflect.ValueOf(f)
-	fargs := make([]reflect.Value, fv.Type().NumIn()+unchained)
+	fargs := make([]reflect.Value, fv.Type().NumIn())
 	fargs0 := reflect.Zero(fv.Type().Out(0))
 	return func(cached interface{}, args ...interface{}) (interface{}, error) {
-		if cached == nil {
+		if chained > 0 && cached == nil {
 			fargs[0] = fargs0
-		} else {
+		} else if chained > 0 {
 			fargs[0] = reflect.ValueOf(cached)
 		}
 
 		for i := 0; i < len(args); i++ {
-			fargs[i+1] = reflect.ValueOf(args[i])
+			fargs[i+chained] = reflect.ValueOf(args[i])
 		}
 		rets := fv.Call(fargs)
 		if len(rets) < 2 {

@@ -18,9 +18,13 @@ type TypeA struct {
 	test     int64
 }
 
-func NewTypeA(validate bool) *TypeA {
+func NewTypeA(chained bool, validate bool) *TypeA {
 	typeA := &TypeA{}
-	typeA.variable.Producer = cache.FormalizeChainedICProducer(typeA.costOperation)
+	if chained {
+		typeA.variable.Producer = cache.FormalizeChainedICProducer(typeA.chainedCostOperation)
+	} else {
+		typeA.variable.Producer = cache.FormalizeICProducer(typeA.costOperation)
+	}
 	if validate {
 		typeA.variable.Validator = cache.FormalizeICValidator(typeA.validate)
 	}
@@ -32,7 +36,11 @@ func (f *TypeA) GetVariable(arg int64) float64 {
 	return f.variable.Value(arg).(float64)
 }
 
-func (f *TypeA) costOperation(cached float64, arg int64) float64 {
+func (f *TypeA) costOperation(arg int64) float64 {
+	return float64(arg)
+}
+
+func (f *TypeA) chainedCostOperation(cached float64, arg int64) float64 {
 	return float64(arg)
 }
 
@@ -42,12 +50,16 @@ func (f *TypeA) validate(cached float64) bool {
 
 var _ = Describe("InlineCache", func() {
 	It("should example works", func() {
-		a := NewTypeA(false)
+		a := NewTypeA(false, false)
 		Expect(a.GetVariable(1)).To(Equal(1.0))
 		Expect(a.GetVariable(2)).To(Equal(1.0))
 
-		b := NewTypeA(true)
+		b := NewTypeA(true, false)
 		Expect(b.GetVariable(1)).To(Equal(1.0))
-		Expect(b.GetVariable(2)).To(Equal(2.0))
+		Expect(b.GetVariable(1)).To(Equal(1.0))
+
+		c := NewTypeA(false, true)
+		Expect(c.GetVariable(1)).To(Equal(1.0))
+		Expect(c.GetVariable(2)).To(Equal(2.0))
 	})
 })
