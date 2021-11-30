@@ -31,6 +31,11 @@ type ChanIterator struct {
 }
 
 func NewIterator(sliceOrChan interface{}) (Iterator, error) {
+	// Shortcut enumerator
+	if enumerator, ok := sliceOrChan.(Enumerator); ok {
+		return &EnumeratorIterator{Enumerator: enumerator, index: -1}, nil
+	}
+
 	srcT := reflect.TypeOf(sliceOrChan)
 	kind := srcT.Kind()
 	if kind == reflect.Slice || kind == reflect.Array {
@@ -51,6 +56,10 @@ func (iter *ContainerIterator) Len() int {
 
 func (iter *ContainerIterator) Cap() int {
 	return iter.container.Cap()
+}
+
+func (iter *ContainerIterator) Container() interface{} {
+	return iter.container.Interface()
 }
 
 func (iter *ArrayIterator) Next() bool {
