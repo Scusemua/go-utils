@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"reflect"
 
 	configKit "github.com/gookit/config/v2"
@@ -31,7 +32,7 @@ type Options interface {
 	Validate() error
 
 	// init initializes the options based on defined tags.
-	init(opts Options) error
+	init(opts interface{}) error
 
 	// meta returns underline options contains meta info.
 	meta() *options
@@ -41,12 +42,12 @@ type options struct {
 	YAML string `name:"yaml" description:"Path to config file in the yml format."`
 
 	root Options
-	seen map[reflect.Type]Options
+	seen map[reflect.Type]interface{}
 	raw  reflect.Value
 }
 
 func NewOptions() Options {
-	root := &options{seen: make(map[reflect.Type]Options)}
+	root := &options{seen: make(map[reflect.Type]interface{})}
 	root.root = root
 	return root
 }
@@ -77,7 +78,7 @@ func Polyfill(opts Options, fill Options) error {
 // Returns a FlagSet and error.
 // If returns ErrPrintUsage, the usage should be printed.
 func ValidateOptions(opts Options) (*flag.FlagSet, error) {
-	return ValidateOptionsWithFlags(opts, flag.Args()...)
+	return ValidateOptionsWithFlags(opts, os.Args[1:]...)
 }
 
 // ValidateOptionsWithFlags validates the options with specified arguments.
@@ -106,18 +107,23 @@ func ValidateOptionsWithFlags(opts Options, args ...string) (*flag.FlagSet, erro
 	}
 
 	meta := opts.meta()
-	for _, opt := range meta.seen {
-		if err := opt.Validate(); err != nil {
-			return Flag, err
+	for _, s := range meta.seen {
+		if opts, ok := s.(Options); ok {
+			if err := opts.Validate(); err != nil {
+				return Flag, err
+			}
 		}
 	}
 
 	return Flag, nil
 }
 
-func (o *options) init(opts Options) error {
+func (o *options) init(opts interface{}) error {
 	t := reflect.TypeOf(opts)
-	defer func() { o.seen[t] = opts }()
+	defer func() {
+		o.seen[t] = opts
+		// log.Printf("seen %v", t)
+	}()
 
 	oType := t.Elem()
 	oVal := reflect.ValueOf(opts).Elem()
@@ -137,19 +143,32 @@ func (o *options) init(opts Options) error {
 			opt = opt.Addr()
 		}
 		if opt.CanInterface() {
-			innerOpts, ok := opt.Interface().(Options)
-			_, seen := o.seen[reflect.TypeOf(innerOpts)]
-			if ok && !seen {
+			_, seen := o.seen[opt.Type()]
+			// log.Printf("checking %s, type %v, seen %v, kind %v", field.Name, opt.Type(), seen, field.Type.Kind())
+			if seen {
+				continue
+			}
+
+			if innerOpts, ok := opt.Interface().(Options); ok {
 				if err := Polyfill(innerOpts, o.root); err != nil {
 					return err
 				}
 				if err := innerOpts.init(innerOpts); err != nil {
 					return err
 				}
+				// Make sure the Options interface is seen too.
+				if _, seen := o.seen[opt.Type()]; !seen {
+					o.seen[opt.Type()] = innerOpts
+					// log.Printf("seen %v", opt.Type())
+				}
 				continue
-			} else if ok {
+			} else if field.Type.Kind() == reflect.Struct {
+				if err := o.init(opt.Interface()); err != nil {
+					return err
+				}
 				continue
-			} // else: pass
+			}
+			// else: pass
 		}
 
 		name := field.Tag.Get(OptionName)

@@ -22,9 +22,18 @@ type MyLoggerConfig struct {
 	Test bool `name:"test" description:"Option \"test\"."`
 }
 
+type MyExtensionConfig struct {
+	Extension string `name:"extension" description:"Option \"extension\"."`
+}
+
 type MyCompositeConfig struct {
 	config.SeedOptions
 	Logger config.LoggerOptions
+}
+
+type MyCompositeExtension struct {
+	config.SeedOptions
+	MyExtensionConfig
 }
 
 func checkFlagSet(flagSet *flag.FlagSet, err error) {
@@ -86,6 +95,16 @@ var _ = Describe("Options", func() {
 		Expect(cfg.Logger.Debug).To(Equal(true))
 		Expect(config.LogLevel).To(Equal(logger.LOG_LEVEL_ALL))
 		Expect(cfg.Seed).To(Equal(int64(123)))
+	})
+
+	It("should composite extension config works", func() {
+		var cfg MyCompositeExtension
+		flagSet, err := config.ValidateOptionsWithFlags(&cfg, "-seed=123", "-extension=test")
+		checkFlagSet(flagSet, err)
+
+		Expect(err).To(BeNil())
+		Expect(cfg.Seed).To(Equal(int64(123)))
+		Expect(cfg.Extension).To(Equal("test"))
 	})
 
 	It("should yaml works for options", func() {
