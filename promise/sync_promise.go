@@ -7,19 +7,16 @@ import (
 )
 
 type SyncPromise struct {
-	cond     *sync.Cond
-	mu       sync.Mutex
-	timer    *time.Timer
-	resolved int64
+	AbstractPromise
 
-	options interface{}
-	val     interface{}
-	err     error
+	cond   *sync.Cond
+	mu     sync.Mutex
+	timers []*time.Timer
 }
 
 func ResolvedSync(rets ...interface{}) *SyncPromise {
 	promise := NewSyncPromiseWithOptions(nil)
-	if promise.resolve(rets...) {
+	if promise.ResolveRets(rets...) {
 		promise.resolved = time.Now().UnixNano()
 	} else {
 		promise.resolved = int64(1) // Differentiate with PromiseInit
@@ -32,62 +29,12 @@ func NewSyncPromise() *SyncPromise {
 }
 
 func NewSyncPromiseWithOptions(opts interface{}) *SyncPromise {
-	promise := &SyncPromise{
-		options: opts,
-	}
+	promise := &SyncPromise{}
 	promise.cond = sync.NewCond(&promise.mu)
+	promise.timers = make([]*time.Timer, 0, 2)
+	promise.ResetWithOptions(opts)
+	promise.SetProvider(promise)
 	return promise
-}
-
-func (p *SyncPromise) Reset() {
-	p.ResetWithOptions(nil)
-}
-
-func (p *SyncPromise) ResetWithOptions(opts interface{}) {
-	atomic.StoreInt64(&p.resolved, PromiseInit)
-	p.options = opts
-	p.val = nil
-	p.err = nil
-}
-
-func (p *SyncPromise) SetTimeout(timeout time.Duration) {
-	if p.IsResolved() {
-		return
-	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Check again
-	if p.IsResolved() {
-		return
-	}
-
-	if p.timer == nil {
-		p.timer = time.NewTimer(timeout)
-		return
-	}
-	if !p.timer.Stop() {
-		<-p.timer.C
-	}
-	p.timer.Reset(timeout)
-}
-
-func (p *SyncPromise) Close() {
-
-}
-
-func (p *SyncPromise) IsResolved() bool {
-	return atomic.LoadInt64(&p.resolved) != PromiseInit
-}
-
-func (p *SyncPromise) ResolvedAt() time.Time {
-	ts := atomic.LoadInt64(&p.resolved)
-	if ts == PromiseInit {
-		return time.Time{}
-	} else {
-		return time.Unix(0, ts)
-	}
 }
 
 func (p *SyncPromise) Resolve(rets ...interface{}) (Promise, error) {
@@ -98,50 +45,21 @@ func (p *SyncPromise) Resolve(rets ...interface{}) (Promise, error) {
 		return p, ErrResolved
 	}
 
-	p.resolve(rets...)
+	p.ResolveRets(rets...)
 	atomic.StoreInt64(&p.resolved, time.Now().UnixNano())
 	p.cond.Broadcast()
-	if p.timer != nil {
-		p.stopTimerLocked()
-	}
 	return p, nil
 }
 
-func (p *SyncPromise) Options() interface{} {
-	return p.options
-}
-
-func (p *SyncPromise) Value() interface{} {
-	p.wait()
-	return p.val
-}
-
-func (p *SyncPromise) Result() (interface{}, error) {
-	p.wait()
-	return p.val, p.err
-}
-
-func (p *SyncPromise) Error() error {
-	p.wait()
-	return p.err
-}
-
 func (p *SyncPromise) Timeout() error {
-	p.mu.Lock()
-	timer := p.timer
-	p.timer = nil
-
-	if p.IsResolved() {
-		p.mu.Unlock()
+	ch, err := p.TimeoutC()
+	if err == ErrResolved {
 		return nil
+	} else if err != nil {
+		return err
 	}
 
-	p.mu.Unlock()
-
-	if timer == nil {
-		return ErrTimeoutNoSet
-	}
-	<-timer.C
+	<-ch
 	if p.IsResolved() {
 		return nil
 	} else {
@@ -149,36 +67,29 @@ func (p *SyncPromise) Timeout() error {
 	}
 }
 
-func (p *SyncPromise) resolve(rets ...interface{}) bool {
-	switch len(rets) {
-	case 0:
-		return false
-	case 1:
-		p.val = rets[0]
-	default:
-		p.val = rets[0]
-		if rets[1] == nil {
-			p.err = nil
-		} else {
-			p.err = rets[1].(error)
-		}
-	}
-	return true
-}
-
-func (p *SyncPromise) wait() {
+// PromiseProvider
+func (p *SyncPromise) Wait() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	for atomic.LoadInt64(&p.resolved) == PromiseInit {
 		p.cond.Wait()
 	}
+
+	for _, timer := range p.timers {
+		timer.Stop()
+	}
+	p.timers = p.timers[:0]
 }
 
-func (p *SyncPromise) stopTimerLocked() {
-	if p.timer == nil {
-		return
-	} else if p.timer.Stop() {
-		p.timer.Reset(time.Duration(0))
-	}
+func (p *SyncPromise) Lock() {
+	p.mu.Lock()
+}
+
+func (p *SyncPromise) Unlock() {
+	p.mu.Unlock()
+}
+
+func (p *SyncPromise) OnCreateTimerLocked(timer *time.Timer) {
+	p.timers = append(p.timers, timer)
 }

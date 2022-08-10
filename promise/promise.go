@@ -10,9 +10,10 @@ const (
 )
 
 var (
-	ErrResolved     = errors.New("resolved already")
-	ErrTimeoutNoSet = errors.New("timeout not set")
-	ErrTimeout      = errors.New("timeout")
+	ErrResolved       = errors.New("resolved already")
+	ErrTimeoutNoSet   = errors.New("timeout not set")
+	ErrTimeout        = errors.New("timeout")
+	ErrNotImplemented = errors.New("not implemented")
 )
 
 type Promise interface {
@@ -21,9 +22,6 @@ type Promise interface {
 
 	// ResetWithOptions Reset promise will options
 	ResetWithOptions(interface{})
-
-	// SetTimeout Set how long the promise should timeout.
-	SetTimeout(time.Duration)
 
 	// Close Close the promise
 	Close()
@@ -49,8 +47,17 @@ type Promise interface {
 	// Error Get last error on resolving
 	Error() error
 
-	// Timeout Return ErrTimeout if timeout, or ErrTimeoutNoSet if the timer not set.
+	// SetTimeout Set how long the promise should timeout.
+	SetTimeout(time.Duration)
+
+	// Deadline returns the deadline if timeout is set.
+	Deadline() (time.Time, bool)
+
+	// Timeout returns ErrTimeout if timeout, or ErrTimeoutNoSet if the timeout not set.
 	Timeout() error
+
+	// TimeoutC returns a channel that is closed when the promise timeout.
+	TimeoutC() (<-chan time.Time, error)
 }
 
 func Resolved(rets ...interface{}) Promise {

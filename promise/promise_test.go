@@ -51,20 +51,20 @@ func shouldTimeout(test func() interface{}) {
 
 var _ = Describe("ChannelPromise", func() {
 	It("no wait if data has been available already", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 		promise.Resolve(ret)
 
 		Expect(shouldNotTimeout(promise.Value)).To(Equal(ret))
 	})
 
 	It("should wait if data is not available", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 
 		shouldTimeout(promise.Value)
 	})
 
 	It("should wait if data is not available", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 
 		var done sync.WaitGroup
 		done.Add(1)
@@ -81,7 +81,7 @@ var _ = Describe("ChannelPromise", func() {
 	})
 
 	It("should timeout as expected", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 		promise.SetTimeout(100 * time.Millisecond)
 
 		var done sync.WaitGroup
@@ -100,7 +100,7 @@ var _ = Describe("ChannelPromise", func() {
 	})
 
 	It("should not timeout if value has been available", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 		promise.Resolve(ret, nil)
 		promise.SetTimeout(2000 * time.Millisecond)
 
@@ -113,7 +113,7 @@ var _ = Describe("ChannelPromise", func() {
 	})
 
 	It("should not timeout if value is available", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 		promise.SetTimeout(100 * time.Millisecond)
 
 		var done sync.WaitGroup
@@ -134,7 +134,7 @@ var _ = Describe("ChannelPromise", func() {
 	})
 
 	It("should not timeout multiple times", func() {
-		promise := NewChannelPromise()
+		promise := NewPromise()
 
 		var done sync.WaitGroup
 		done.Add(1)
@@ -164,6 +164,51 @@ var _ = Describe("ChannelPromise", func() {
 
 		done.Wait()
 	})
+
+	It("should support concurrent timeout", func() {
+		promise := NewPromise()
+		concurrency := 10
+
+		var done sync.WaitGroup
+		done.Add(1)
+		go func() {
+			<-time.After(250 * time.Millisecond)
+			promise.Resolve(ret, nil)
+			done.Done()
+		}()
+
+		promise.SetTimeout(100 * time.Millisecond)
+		for i := 0; i < concurrency; i++ {
+			done.Add(1)
+			go func() {
+				// defer GinkgoRecover()
+
+				Expect(shouldNotTimeout(func() interface{} {
+					return promise.Timeout()
+				})).To(Equal(ErrTimeout))
+				done.Done()
+			}()
+		}
+		done.Wait()
+
+		promise.SetTimeout(200 * time.Millisecond)
+		for i := 0; i < concurrency; i++ {
+			done.Add(1)
+			go func() {
+				defer GinkgoRecover()
+
+				Expect(shouldNotTimeout(func() interface{} {
+					return promise.Timeout()
+				})).To(BeNil())
+				done.Done()
+			}()
+		}
+
+		Expect(shouldNotTimeout(promise.Value)).To(Equal(ret))
+		Expect(promise.Error()).To(BeNil())
+
+		done.Wait()
+	})
 })
 
 func BenchmarkNewChannel(b *testing.B) {
@@ -175,7 +220,7 @@ func BenchmarkNewChannel(b *testing.B) {
 
 func BenchmarkNewPromise(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		promise := NewPromise()
+		promise := NewSyncPromise()
 		promise.Close()
 	}
 }
@@ -191,7 +236,7 @@ func BenchmarkChannelResolvedCheck(b *testing.B) {
 
 func BenchmarkPromiseResolvedCheck(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		promise := NewPromise()
+		promise := NewSyncPromise()
 		if !promise.IsResolved() {
 			promise.Close()
 		}
@@ -210,7 +255,7 @@ func BenchmarkChannelNotification(b *testing.B) {
 
 func BenchmarkPromiseNotification(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		promise := NewPromise()
+		promise := NewSyncPromise()
 		go func() {
 			promise.Resolve(ret)
 		}()
