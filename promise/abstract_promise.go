@@ -97,7 +97,12 @@ func (p *AbstractPromise) Error() error {
 	return p.err
 }
 
-func (p *AbstractPromise) TimeoutC() (<-chan time.Time, error) {
+func (p *AbstractPromise) TimeoutC(timeouts ...time.Duration) (<-chan time.Time, error) {
+	timeout := time.Duration(0)
+	if len(timeouts) > 0 {
+		timeout = timeouts[0]
+	}
+
 	p.provider.Lock()
 
 	if p.IsResolved() {
@@ -105,17 +110,19 @@ func (p *AbstractPromise) TimeoutC() (<-chan time.Time, error) {
 		return nil, ErrResolved
 	}
 
-	if !p.willTimeout {
+	if timeout == 0 && !p.willTimeout {
 		p.provider.Unlock()
 		return nil, ErrTimeoutNoSet
+	} else if timeout == 0 {
+		// Can < 0
+		timeout = time.Until(p.deadline)
 	}
 
-	duration := time.Until(p.deadline)
-	if duration <= 0 {
+	if timeout <= 0 {
 		p.provider.Unlock()
 		return nil, ErrTimeout
 	}
-	timer := time.NewTimer(duration)
+	timer := time.NewTimer(timeout)
 	p.provider.OnCreateTimerLocked(timer)
 
 	p.provider.Unlock()

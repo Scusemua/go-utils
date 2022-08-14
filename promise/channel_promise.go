@@ -59,8 +59,8 @@ func (p *ChannelPromise) Resolve(rets ...interface{}) (Promise, error) {
 	return p, nil
 }
 
-func (p *ChannelPromise) Timeout() error {
-	ch, err := p.TimeoutC()
+func (p *ChannelPromise) Timeout(timeouts ...time.Duration) error {
+	ch, err := p.TimeoutC(timeouts...)
 	if err == ErrResolved {
 		return nil
 	} else if err != nil {

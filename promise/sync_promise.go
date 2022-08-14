@@ -51,8 +51,8 @@ func (p *SyncPromise) Resolve(rets ...interface{}) (Promise, error) {
 	return p, nil
 }
 
-func (p *SyncPromise) Timeout() error {
-	ch, err := p.TimeoutC()
+func (p *SyncPromise) Timeout(timeouts ...time.Duration) error {
+	ch, err := p.TimeoutC(timeouts...)
 	if err == ErrResolved {
 		return nil
 	} else if err != nil {

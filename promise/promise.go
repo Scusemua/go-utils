@@ -54,10 +54,10 @@ type Promise interface {
 	Deadline() (time.Time, bool)
 
 	// Timeout returns ErrTimeout if timeout, or ErrTimeoutNoSet if the timeout not set.
-	Timeout() error
+	Timeout(timeout ...time.Duration) error
 
 	// TimeoutC returns a channel that is closed when the promise timeout.
-	TimeoutC() (<-chan time.Time, error)
+	TimeoutC(timeout ...time.Duration) (<-chan time.Time, error)
 }
 
 func Resolved(rets ...interface{}) Promise {
