@@ -1,6 +1,7 @@
 package promise
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,11 +17,7 @@ type SyncPromise struct {
 
 func ResolvedSync(rets ...interface{}) *SyncPromise {
 	promise := NewSyncPromiseWithOptions(nil)
-	if promise.ResolveRets(rets...) {
-		promise.resolved = time.Now().UnixNano()
-	} else {
-		promise.resolved = int64(1) // Differentiate with PromiseInit
-	}
+	promise.Resolve(rets...)
 	return promise
 }
 
@@ -32,9 +29,19 @@ func NewSyncPromiseWithOptions(opts interface{}) *SyncPromise {
 	promise := &SyncPromise{}
 	promise.cond = sync.NewCond(&promise.mu)
 	promise.timers = make([]*time.Timer, 0, 2)
-	promise.ResetWithOptions(opts)
+	promise.AbstractPromise.ResetWithOptions(opts)
 	promise.SetProvider(promise)
 	return promise
+}
+
+func (p *SyncPromise) Reset() {
+	p.ResetWithOptions(nil)
+}
+
+func (p *SyncPromise) ResetWithOptions(opts interface{}) {
+	p.Resolve(nil, ErrReset)
+	runtime.Gosched()
+	p.AbstractPromise.ResetWithOptions(opts)
 }
 
 func (p *SyncPromise) Resolve(rets ...interface{}) (Promise, error) {

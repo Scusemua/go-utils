@@ -1,6 +1,7 @@
 package promise
 
 import (
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,12 +16,7 @@ type ChannelPromise struct {
 
 func ResolvedChannel(rets ...interface{}) *ChannelPromise {
 	promise := NewChannelPromiseWithOptions(nil)
-	if promise.ResolveRets(rets...) {
-		promise.resolved = time.Now().UnixNano()
-	} else {
-		promise.resolved = int64(1) // Differentiate with PromiseInit
-	}
-	close(promise.cond)
+	promise.Resolve(rets...)
 	return promise
 }
 
@@ -30,7 +26,7 @@ func NewChannelPromise() *ChannelPromise {
 
 func NewChannelPromiseWithOptions(opts interface{}) *ChannelPromise {
 	promise := &ChannelPromise{}
-	promise.ResetWithOptions(opts)
+	promise.resetWithOptions(opts)
 	promise.SetProvider(promise)
 	return promise
 }
@@ -40,8 +36,9 @@ func (p *ChannelPromise) Reset() {
 }
 
 func (p *ChannelPromise) ResetWithOptions(opts interface{}) {
-	p.AbstractPromise.ResetWithOptions(opts)
-	p.cond = make(chan struct{})
+	p.Resolve(nil, ErrReset)
+	runtime.Gosched()
+	p.resetWithOptions(opts)
 }
 
 func (p *ChannelPromise) Resolve(rets ...interface{}) (Promise, error) {
@@ -86,4 +83,9 @@ func (p *ChannelPromise) Lock() {
 
 func (p *ChannelPromise) Unlock() {
 	p.mu.Unlock()
+}
+
+func (p *ChannelPromise) resetWithOptions(opts interface{}) {
+	p.AbstractPromise.ResetWithOptions(opts)
+	p.cond = make(chan struct{})
 }

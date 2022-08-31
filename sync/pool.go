@@ -1,91 +1,29 @@
 package sync
 
-import "sync"
-
-var (
-	PoolForStrictConcurrency = PoolPerformanceOption(1)
-	PoolForPerformance       = PoolPerformanceOption(2)
+import (
+	"context"
+	"errors"
 )
 
-type PoolPerformanceOption int
+var (
+	ErrPoolClosed = errors.New("pool is closed")
+	ErrPoolFull   = errors.New("pool is full")
+)
 
-type Pool struct {
-	New      func() interface{}
-	Finalize func(interface{})
+// Pool defines a pool that supports eviction awareness and get value by specified filters.
+type Pool[V any] interface {
+	// Get returns a value qualifies specified filter from the pool.
+	Get(context.Context) (V, error)
 
-	capacity  int
-	allocated int
-	pooled    chan interface{}
+	// Put puts a function back to the pool.
+	Put(V) error
 
-	mu   sync.Mutex
-	cond *sync.Cond
+	// Close closes the pool.
+	Close()
 }
 
-func NewPool(cap int, opt PoolPerformanceOption) *Pool {
-	return (&Pool{}).init(cap, opt)
-}
-
-func InitPool(p *Pool, cap int, opt PoolPerformanceOption) *Pool {
-	return p.init(cap, opt)
-}
-
-func (p *Pool) init(cap int, opt PoolPerformanceOption) *Pool {
-	p.capacity = cap * int(opt)
-	p.pooled = make(chan interface{}, p.capacity)
-	p.cond = sync.NewCond(&p.mu)
-	return p
-}
-
-func (p *Pool) Get() interface{} {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	for {
-		select {
-		case i := <-p.pooled:
-			return i
-		default:
-			if p.allocated < p.capacity {
-				p.allocated++
-				if p.New == nil {
-					return nil
-				} else {
-					return p.New()
-				}
-			}
-
-			p.cond.Wait()
-		}
-	}
-}
-
-func (p *Pool) Put(i interface{}) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	select {
-	case p.pooled <- i:
-		p.cond.Signal()
-	default:
-		// Abandon. This is unlikely, but just in case.
-		if p.Finalize != nil {
-			p.Finalize(i)
-		}
-	}
-}
-
-func (p *Pool) Close() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	finalize := p.Finalize
-	if finalize == nil {
-		finalize = p.defaultFinalizer
-	}
-	for len(p.pooled) > 0 {
-		finalize(<-p.pooled)
-	}
-}
-
-func (p *Pool) defaultFinalizer(i interface{}) {
+// WaitPool defines a pool that has limited capacity and will wait for a value to be returned if the pool is full.
+type WaitPool[V any] interface {
+	// Release releases the quota occupied by a pooling value.
+	Release(V)
 }

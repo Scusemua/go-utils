@@ -1,8 +1,11 @@
 package promise
 
 import (
+	"context"
 	"errors"
 	"time"
+
+	"github.com/mason-leap-lab/go-utils/sync"
 )
 
 const (
@@ -14,6 +17,16 @@ var (
 	ErrTimeoutNoSet   = errors.New("timeout not set")
 	ErrTimeout        = errors.New("timeout")
 	ErrNotImplemented = errors.New("not implemented")
+	ErrReset          = errors.New("promise reset")
+
+	// OnNewPromise offers a default implementation to instancize a new Promise for the PromisePool.
+	OnNewPromise = func() Promise {
+		return NewWaitGroupPromise()
+	}
+
+	// PromisePool offer a default pool to reused the Promises on calling NewPromise.
+	// The default implmentation offers no pooling, call InitPool to setup a pool.
+	PromisePool sync.Pool[Promise] = &sync.NilPool[Promise]{New: OnNewPromise}
 )
 
 type Promise interface {
@@ -60,14 +73,31 @@ type Promise interface {
 	TimeoutC(timeout ...time.Duration) (<-chan time.Time, error)
 }
 
-func Resolved(rets ...interface{}) Promise {
-	return ResolvedChannel(rets...)
+// InitPool intialize the pool with specified capacity.
+func InitPool(cap int) {
+	PromisePool = sync.InitCappedPool(&sync.CappedPool[Promise]{New: OnNewPromise}, cap)
 }
 
-func NewPromise() Promise {
-	return NewChannelPromiseWithOptions(nil)
+// Resolved returns a resolved promise.
+func Resolved(rets ...interface{}) (p Promise) {
+	p, _ = NewPromise().Resolve(rets...)
+	return
 }
 
+// NewPromise returns a new promise provided by the pool.
+func NewPromise() (p Promise) {
+	p, _ = PromisePool.Get(context.TODO())
+	return
+}
+
+// NewPromise returns a new promise with options provided by the pool.
 func NewPromiseWithOptions(opts interface{}) Promise {
-	return NewChannelPromiseWithOptions(opts)
+	p := NewPromise()
+	p.ResetWithOptions(opts)
+	return p
+}
+
+// Recycle returns the promise to the pool.
+func Recycle(p Promise) {
+	PromisePool.Put(p)
 }

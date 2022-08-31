@@ -14,27 +14,37 @@ var (
 	ret = &struct{}{}
 )
 
+type TimeoutResult bool
+
+func (t TimeoutResult) String() string {
+	if t {
+		return "timeout"
+	} else {
+		return "not timeout"
+	}
+}
+
 func TestTypes(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Promise")
 }
 
-func shouldNotTimeout(test func() interface{}, expects ...bool) interface{} {
-	expect := false
+func shouldNotTimeout[V any](test func() V, expects ...TimeoutResult) V {
+	expect := TimeoutResult(false)
 	if len(expects) > 0 {
 		expect = expects[0]
 	}
 
 	timer := time.NewTimer(time.Second)
-	timeout := false
-	responeded := make(chan interface{})
-	var ret interface{}
+	timeout := TimeoutResult(false)
+	responeded := make(chan V)
+	var ret V
 	go func() {
 		responeded <- test()
 	}()
 	select {
 	case <-timer.C:
-		timeout = true
+		timeout = TimeoutResult(true)
 	case ret = <-responeded:
 		if !timer.Stop() {
 			<-timer.C
@@ -45,11 +55,11 @@ func shouldNotTimeout(test func() interface{}, expects ...bool) interface{} {
 	return ret
 }
 
-func shouldTimeout(test func() interface{}) {
-	shouldNotTimeout(test, true)
+func shouldTimeout[V any](test func() V) {
+	shouldNotTimeout(test, TimeoutResult(true))
 }
 
-var _ = Describe("ChannelPromise", func() {
+var _ = Describe("Promise", func() {
 	It("no wait if data has been available already", func() {
 		promise := NewPromise()
 		promise.Resolve(ret)
@@ -63,7 +73,7 @@ var _ = Describe("ChannelPromise", func() {
 		shouldTimeout(promise.Value)
 	})
 
-	It("should wait if data is not available", func() {
+	It("should wait until data is available", func() {
 		promise := NewPromise()
 
 		var done sync.WaitGroup
@@ -78,6 +88,28 @@ var _ = Describe("ChannelPromise", func() {
 		promise.Resolve(ret)
 
 		done.Wait()
+	})
+
+	It("should unblock on reset", func() {
+		promise := NewPromise()
+
+		var done sync.WaitGroup
+		done.Add(1)
+		go func() {
+			<-time.After(500 * time.Millisecond)
+			promise.Reset()
+			done.Done()
+		}()
+		Expect(shouldNotTimeout(promise.Error)).To(Equal(ErrReset))
+
+		// Wait for reset
+		done.Wait()
+
+		shouldTimeout(promise.Value)
+
+		_, err := promise.Resolve(ret)
+		Expect(err).To(BeNil())
+		Expect(promise.Value()).To(Equal(ret))
 	})
 
 	It("should timeout as expected", func() {
@@ -211,21 +243,28 @@ var _ = Describe("ChannelPromise", func() {
 	})
 })
 
-func BenchmarkNewChannel(b *testing.B) {
+func BenchmarkNewChannelPromise(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		promise := NewChannelPromise()
 		promise.Close()
 	}
 }
 
-func BenchmarkNewPromise(b *testing.B) {
+func BenchmarkNewSyncPromise(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		promise := NewSyncPromise()
 		promise.Close()
 	}
 }
 
-func BenchmarkChannelResolvedCheck(b *testing.B) {
+func BenchmarkNewWaitGroupPromise(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		promise := NewWaitGroupPromise()
+		promise.Close()
+	}
+}
+
+func BenchmarkChannelPromiseResolvedCheck(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		promise := NewChannelPromise()
 		if !promise.IsResolved() {
@@ -234,7 +273,7 @@ func BenchmarkChannelResolvedCheck(b *testing.B) {
 	}
 }
 
-func BenchmarkPromiseResolvedCheck(b *testing.B) {
+func BenchmarkSyncPromiseResolvedCheck(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		promise := NewSyncPromise()
 		if !promise.IsResolved() {
@@ -243,7 +282,16 @@ func BenchmarkPromiseResolvedCheck(b *testing.B) {
 	}
 }
 
-func BenchmarkChannelNotification(b *testing.B) {
+func BenchmarkWaitGroupPromiseResolvedCheck(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		promise := NewWaitGroupPromise()
+		if !promise.IsResolved() {
+			promise.Close()
+		}
+	}
+}
+
+func BenchmarkChannelPromiseNotification(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		promise := NewChannelPromise()
 		go func() {
@@ -253,12 +301,33 @@ func BenchmarkChannelNotification(b *testing.B) {
 	}
 }
 
-func BenchmarkPromiseNotification(b *testing.B) {
+func BenchmarkSyncPromiseNotification(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		promise := NewSyncPromise()
 		go func() {
 			promise.Resolve(ret)
 		}()
 		promise.Value()
+	}
+}
+
+func BenchmarkWaitGroupPromiseNotification(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		promise := NewWaitGroupPromise()
+		go func() {
+			promise.Resolve(ret)
+		}()
+		promise.Value()
+	}
+}
+
+func BenchmarkPromiseNotificationWithRecycling(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		promise := NewPromise()
+		go func() {
+			promise.Resolve(ret)
+		}()
+		promise.Value()
+		Recycle(promise)
 	}
 }
