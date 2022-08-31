@@ -24,6 +24,8 @@ type Pool[V any] interface {
 
 // WaitPool defines a pool that has limited capacity and will wait for a value to be returned if the pool is full.
 type WaitPool[V any] interface {
+	Pool[V]
+
 	// Release releases the quota occupied by a pooling value.
 	Release(V)
 }

@@ -23,7 +23,7 @@ func NewConcurrencyPool[V any](cap int) *ConcurrencyPool[V] {
 
 func InitConcurrencyPool[V any](p *CappedPool[V], cap int) *ConcurrencyPool[V] {
 	return (&ConcurrencyPool[V]{
-		CappedPool: InitCappedPool[V](p, cap),
+		CappedPool: InitCappedPool(p, cap),
 	}).init(cap)
 }
 
