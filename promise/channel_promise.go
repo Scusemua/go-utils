@@ -3,7 +3,6 @@ package promise
 import (
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -50,7 +49,6 @@ func (p *ChannelPromise) Resolve(rets ...interface{}) (Promise, error) {
 		return p, ErrResolved
 	default:
 		p.AbstractPromise.ResolveRets(rets...)
-		atomic.StoreInt64(&p.resolved, time.Now().UnixNano())
 		close(p.cond)
 	}
 	return p, nil

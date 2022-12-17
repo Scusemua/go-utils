@@ -60,6 +60,27 @@ func shouldTimeout[V any](test func() V) {
 }
 
 var _ = Describe("Promise", func() {
+	It("should resolved after resolved", func() {
+		promise := NewPromise()
+		promise.Resolve(ret)
+
+		Expect(promise.IsResolved()).To(BeTrue())
+		Expect(promise.ResolvedAt()).To(Not(Equal(time.Time{})))
+		got, _ := promise.Result()
+		Expect(got).To(Equal(ret))
+		Expect(promise.Value()).To(Equal(ret))
+
+		resolve := Resolved(ret)
+		Expect(resolve.IsResolved()).To(BeTrue())
+		Expect(resolve.ResolvedAt()).To(Not(Equal(time.Time{})))
+		Expect(resolve.Value()).To(Equal(ret))
+
+		resolve = Resolved()
+		Expect(resolve.IsResolved()).To(BeTrue())
+		Expect(resolve.ResolvedAt()).To(Not(Equal(time.Time{})))
+		Expect(resolve.Value()).To(BeNil())
+	})
+
 	It("no wait if data has been available already", func() {
 		promise := NewPromise()
 		promise.Resolve(ret)

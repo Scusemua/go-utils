@@ -87,6 +87,7 @@ func Resolved(rets ...interface{}) (p Promise) {
 // NewPromise returns a new promise provided by the pool.
 func NewPromise() (p Promise) {
 	p, _ = PromisePool.Get(context.TODO())
+	p.Reset()
 	return
 }
 

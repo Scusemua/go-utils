@@ -55,7 +55,7 @@ func (p *AbstractPromise) IsResolved() bool {
 func (p *AbstractPromise) ResolveRets(rets ...interface{}) bool {
 	switch len(rets) {
 	case 0:
-		return false
+		break
 	case 1:
 		p.val = rets[0]
 	default:
@@ -66,6 +66,7 @@ func (p *AbstractPromise) ResolveRets(rets ...interface{}) bool {
 			p.err = rets[1].(error)
 		}
 	}
+	atomic.StoreInt64(&p.resolved, time.Now().UnixNano())
 	return true
 }
 

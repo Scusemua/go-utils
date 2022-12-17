@@ -48,12 +48,11 @@ func (p *SyncPromise) Resolve(rets ...interface{}) (Promise, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if atomic.LoadInt64(&p.resolved) != PromiseInit {
+	if p.IsResolved() {
 		return p, ErrResolved
 	}
 
 	p.ResolveRets(rets...)
-	atomic.StoreInt64(&p.resolved, time.Now().UnixNano())
 	p.cond.Broadcast()
 	return p, nil
 }
