@@ -40,6 +40,8 @@ func shouldNotTimeout[V any](test func() V, expects ...TimeoutResult) V {
 	responeded := make(chan V)
 	var ret V
 	go func() {
+		defer GinkgoRecover()
+
 		responeded <- test()
 	}()
 	select {
@@ -117,9 +119,11 @@ var _ = Describe("Promise", func() {
 		var done sync.WaitGroup
 		done.Add(1)
 		go func() {
+			defer done.Done()
+			defer GinkgoRecover()
+
 			<-time.After(500 * time.Millisecond)
 			promise.Reset()
-			done.Done()
 		}()
 		Expect(shouldNotTimeout(promise.Error)).To(Equal(ErrReset))
 
@@ -131,6 +135,34 @@ var _ = Describe("Promise", func() {
 		_, err := promise.Resolve(ret)
 		Expect(err).To(BeNil())
 		Expect(promise.Value()).To(Equal(ret))
+	})
+
+	It("should timeout-safe on reset", func() {
+		promise := NewPromise()
+
+		var done sync.WaitGroup
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			defer GinkgoRecover()
+
+			err := promise.Timeout(1 * time.Millisecond)
+			Expect(err).To(Equal(ErrTimeout))
+		}()
+
+		<-time.After(500 * time.Millisecond)
+
+		done.Add(1)
+		go func() {
+			defer done.Done()
+			defer GinkgoRecover()
+
+			promise.Resolve(ret)
+			promise.Reset()
+		}()
+
+		// Wait for reset
+		done.Wait()
 	})
 
 	It("should timeout as expected", func() {

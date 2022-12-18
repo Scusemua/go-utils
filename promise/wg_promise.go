@@ -2,6 +2,7 @@ package promise
 
 import (
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/mason-leap-lab/go-utils/sync"
@@ -10,7 +11,8 @@ import (
 type WaitGroupPromise struct {
 	AbstractPromise
 
-	wg sync.WaitGroup
+	wg      sync.WaitGroup
+	waiting int32
 }
 
 func ResolvedWaitGroup(rets ...interface{}) *WaitGroupPromise {
@@ -61,7 +63,7 @@ func (p *WaitGroupPromise) Timeout(timeouts ...time.Duration) error {
 
 	cond := make(chan struct{})
 	go func() {
-		p.wg.Wait()
+		p.Wait()
 		close(cond)
 	}()
 
@@ -75,7 +77,9 @@ func (p *WaitGroupPromise) Timeout(timeouts ...time.Duration) error {
 
 // PromiseProvider
 func (p *WaitGroupPromise) Wait() {
+	atomic.AddInt32(&p.waiting, 1)
 	p.wg.Wait()
+	atomic.AddInt32(&p.waiting, -1)
 }
 
 func (p *WaitGroupPromise) Lock() {
@@ -86,5 +90,9 @@ func (p *WaitGroupPromise) Unlock() {
 
 func (p *WaitGroupPromise) resetWithOptions(opts interface{}) {
 	p.AbstractPromise.ResetWithOptions(opts)
+	// Wait for all waiting goroutines to finish.
+	for atomic.LoadInt32(&p.waiting) > 0 {
+		runtime.Gosched()
+	}
 	p.wg.Add(1)
 }
