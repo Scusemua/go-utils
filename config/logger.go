@@ -45,7 +45,7 @@ func GetLogger(prefix string) logger.Logger {
 }
 
 func InitLogger(log *logger.Logger, prefix interface{}) {
-	if *log != nil {
+	if *log != nil && *log != logger.NilLogger {
 		return
 	}
 

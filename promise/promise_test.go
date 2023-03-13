@@ -157,7 +157,6 @@ var _ = Describe("Promise", func() {
 			defer done.Done()
 			defer GinkgoRecover()
 
-			promise.Resolve(ret)
 			promise.Reset()
 		}()
 

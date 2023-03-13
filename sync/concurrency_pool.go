@@ -40,7 +40,7 @@ func (p *ConcurrencyPool[V]) init(cap int) *ConcurrencyPool[V] {
 
 func (p *ConcurrencyPool[V]) Get(ctx context.Context) (v V, err error) {
 	// Check if context is canceled before attempting to get a value.
-	// This ensures priority is given to the cancelled case.
+	// This ensures priority is given to the canceled case.
 	select {
 	case <-ctx.Done():
 		return v, ctx.Err()
