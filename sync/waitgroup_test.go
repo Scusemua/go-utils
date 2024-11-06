@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	csync "github.com/mason-leap-lab/go-utils/sync"
+	csync "github.com/Scusemua/go-utils/sync"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

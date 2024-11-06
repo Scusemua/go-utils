@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mason-leap-lab/go-utils/sync"
+	"github.com/Scusemua/go-utils/sync"
 )
 
 type WaitGroupPromise struct {

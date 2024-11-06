@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/mason-leap-lab/go-utils/sync"
+	"github.com/Scusemua/go-utils/sync"
 )
 
 const (

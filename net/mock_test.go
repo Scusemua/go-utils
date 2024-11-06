@@ -6,7 +6,7 @@ import (
 
 	mock "github.com/jordwest/mock-conn"
 
-	. "github.com/mason-leap-lab/go-utils/net"
+	. "github.com/Scusemua/go-utils/net"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

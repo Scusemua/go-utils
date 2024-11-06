@@ -1,4 +1,4 @@
-module github.com/mason-leap-lab/go-utils
+module github.com/Scusemua/go-utils
 
 go 1.18
 

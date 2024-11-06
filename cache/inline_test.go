@@ -3,7 +3,7 @@ package cache_test
 import (
 	"testing"
 
-	"github.com/mason-leap-lab/go-utils/cache"
+	"github.com/Scusemua/go-utils/cache"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
